@@ -29,8 +29,8 @@ jobs:
                 push: ${{ github.event_name != 'pull-request' }}
                 tags: wvrmhat/httpenv:latest,wvrmhat/httpenv:02
 
-                cache-from: type = gha
-                cache-to: type = gha, mode = max
+                cache-from: type=gha
+                cache-to: type=gha, mode=max
 
 
                 
