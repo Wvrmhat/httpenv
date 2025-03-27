@@ -11,9 +11,9 @@ services:
       - ./healthchecks:/healthchecks
     healthcheck:
       test: /healthchecks/postgres-healthcheck
-      interval: "15s"
+      interval: "10s"
       # retries: 3
-      start_period: "30s"
+      start_period: "60s"
   sut:
     image: "${TESTING_IMAGE}"
     depends_on:
@@ -22,4 +22,4 @@ services:
       postgres:
         condition: service_healthy
     # run all your tests here against the allhands22 service
-    command: curl --fail http://allhands22:80 || exit 1
+    command: curl --fail http://allhands22:8888 || exit 1
