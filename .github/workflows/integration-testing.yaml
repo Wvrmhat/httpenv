@@ -13,9 +13,9 @@ jobs:
         name: Building Image
         runs-on: Ubuntu-latest
 
-        permissions:
-            contents: read
-            security-events: write 
+        # permissions:
+        #     contents: read
+        #     security-events: write 
 
         steps:
 
