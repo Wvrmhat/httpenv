@@ -40,11 +40,13 @@ jobs:
                 push: false
                 load: true
                 tags: ${{ github.run_id }}
-                target: test
+                # target: test
                 cache-from: type=gha
                 cache-to: type=gha,mode=max
                 platforms: linux/amd64
+
             
+            # simple unit test 
             - name: Unit Testing in Docker
               run: |
                   docker run --rm ${{ github.run_id }} echo "run test commands"
