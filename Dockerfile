@@ -5,7 +5,7 @@ RUN go build httpenv.go
 FROM alpine
 RUN apk --no-cache add curl && \
     addgroup -g 1000 httpenv && \
-    && adduser -u 1000 -G httpenv -D httpenv
+    adduser -u 1000 -G httpenv -D httpenv
 COPY --from=0 --chown=httpenv:httpenv /go/httpenv /httpenv
 EXPOSE 8888
 # we're not changing user in this example, but you could:
