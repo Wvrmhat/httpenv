@@ -17,7 +17,7 @@ args=(
 for i in {1..5}; do
 	if select="$(echo 'SELECT 1' | psql "${args[@]}")" && [ "$select" = '1' ]; then
 		exit 0
-	fi
+fi
 	
 
 exit 1
