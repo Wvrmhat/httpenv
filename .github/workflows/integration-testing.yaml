@@ -1,0 +1,83 @@
+
+name: Integration Testing and Build
+
+on:
+    push:
+        branches:
+            - main
+          
+    pull_request:
+    
+jobs:
+    build-image:
+        name: Building Image
+        runs-on: Ubuntu-latest
+
+        # permissions:
+        #     contents: read
+        #     security-events: write 
+
+        steps:
+
+            - name: Checkout Git Repo
+              uses: actions/checkout@v4 
+
+            - name: Setting up QEMU
+              uses: docker/setup-qemu-action@v3
+
+            - name: Setting up Docker Buildx
+              uses: docker/setup-buildx-action@v3
+
+            - name: Login to DockerHub
+              uses: docker/login-action@v3
+              with:
+                username: ${{ secrets.DOCKERHUB_USERNAME }}
+                password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+            - name: Build and export
+              uses: docker/build-push-action@v6
+              with:
+                push: false
+                load: true 
+                tags: ${{ github.run_id }}
+                # target: test
+                cache-from: type=gha
+                cache-to: type=gha,mode=max
+                platforms: linux/amd64
+
+            
+            # simple integration test 
+            - name: Integration test healthcheck in Docker Compose
+              run: |
+                 export TESTING_IMAGE="${{ github.run_id }}"
+                 docker compose -f docker-compose.test.yml up --exit-code-from sut 
+
+            
+              
+            # step before building to add tags and metadata 
+            - name: Metadata and Dynamic tags
+              id: docker_metadata
+              uses: docker/metadata-action@v5
+              with:
+                images: wvrmhat/httpenv
+                flavor: |
+                    latest=false
+                tags: |
+                    type=raw,value=09
+                    # type=raw,value=latest,enable=${{ endsWith(github.ref, github.event.repository.default_branch) }}
+                    # type=ref,event=pr
+                    # type=ref,event=branch
+                    # type=semver,pattern={{version}} 
+              
+            
+            # for building and pushing to docker hub
+            - name: Docker build and push
+              uses: docker/build-push-action@v6
+              with: 
+                push: true
+                tags: ${{ steps.docker_metadata.outputs.tags }}
+                labels: ${{ steps.docker_metadata.outputs.labels }}
+                cache-from: type=gha
+                cache-to: type=gha, mode=max
+                platforms: linux/amd64,linux/arm64
+

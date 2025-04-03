@@ -1,0 +1,103 @@
+
+name: K8s smoke test 
+
+on:
+    push:
+        branches:
+            - main
+          
+    pull_request:
+    
+jobs:
+    build-image:
+        name: Building Image
+        runs-on: Ubuntu-latest
+
+        permissions:
+            packages: write 
+
+        steps:
+
+            - name: Checkout Git Repo
+              uses: actions/checkout@v4 
+
+            - name: Setting up QEMU
+              uses: docker/setup-qemu-action@v3
+
+            - name: Setting up Docker Buildx
+              uses: docker/setup-buildx-action@v3
+
+            - name: Login to DockerHub
+              uses: docker/login-action@v3
+              with:
+                username: ${{ secrets.DOCKERHUB_USERNAME }}
+                password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+            - name: Login to ghcr.io registry
+              uses: docker/login-action@v3
+              with:
+                registry: ghcr.io
+                username: ${{ github.actor }}
+                password: ${{ secrets.GITHUB_TOKEN }}
+            
+            - name: Build and Push to GHCR
+              uses: docker/build-push-action@v6
+              with:
+                push: true
+                tags: ghcr.io/wvrmhat/httpenv:${{ github.run_id }}
+                # target: test
+                cache-from: type=gha
+                cache-to: type=gha,mode=max
+                platforms: linux/amd64
+
+            - uses: AbsaOSS/k3d-action@v2
+              with:
+                cluster-name: "test-cluster-1"
+                args: >-
+                    --agents 1
+                    --no-lb
+                    --k3s-arg "--no-deploy=traefik,servicelb,metrics-server@server:*"
+
+            - name: Smoke test deploy in k3d Kubernetes
+              run: |
+                    kubectl create secret docker-registry regcred \
+                        --docker-server=https://ghcr.io \
+                        --docker-username=${{ github.actor }} \
+                        --docker-password=${{ secrets.GITHUB_TOKEN }} 
+                    export TESTING_IMAGE=ghcr.io/wvrmhat/httpenv:"$GITHUB_RUN_ID"
+                    envsubst < manifests/deployment.yaml  | kubectl apply -f -
+                    kubectl rollout status deployment myapp
+                    kubectl exec deploy/myapp -- curl --fail localhost:8888
+                    
+                    
+            # step before building to add tags and metadata 
+            - name: Metadata for Final Build 
+              id: docker_metadata
+              uses: docker/metadata-action@v5
+              with:
+                images: wvrmhat/httpenv,ghcr.io/wvrmhat/httpenv
+                flavor: |
+                    latest=false
+                tags: |
+                    type=raw,value=10
+                # type=raw,value=latest,enable=${{ endsWith(github.ref, github.event.repository.default_branch) }}
+                # type=ref,event=pr
+                # type=ref,event=branch
+                # type=semver,pattern={{version}} 
+              
+            
+            # for building and pushing to docker hub
+            - name: Docker build and push
+              uses: docker/build-push-action@v6
+              with: 
+                push: true
+                tags: ${{ steps.docker_metadata.outputs.tags }}
+                labels: ${{ steps.docker_metadata.outputs.labels }}
+                cache-from: type=gha
+                cache-to: type=gha, mode=max
+
+                # default is linux/amd64 (the OS of the runner) but you can add more
+                # adding linux/arm64 is recommended for Apple Silicon, Raspberry Pi, AWS Graviton, etc.
+                # linux/arm/v7 is for 32-bit ARM devices like Raspberry Pi 2/3
+                platforms: linux/amd64,linux/arm64
+
