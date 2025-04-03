@@ -5,7 +5,7 @@ on:
     push:
         branches:
             - main
-            - CVE-branch-  
+           
     pull_request:
     
 jobs:
