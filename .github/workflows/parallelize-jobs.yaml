@@ -73,8 +73,8 @@ jobs:
         permissions:
             packages: read
 
-        env:
-            TESTING_IMAGE: ghcr.io/wvrmhat/httpenv:${{ github.run_id }}
+        # env:
+        #     TESTING_IMAGE: ghcr.io/wvrmhat/httpenv:${{ github.run_id }}
 
         steps:
 
@@ -94,9 +94,12 @@ jobs:
                 username: ${{ github.actor }}
                 password: ${{ secrets.GITHUB_TOKEN }}
 
+            - name: Executing Postgres healthcheck
+              run: chmod +x ./healthchecks/postgres-healthcheck 
+
             - name: Healthceck in Docker Compose 
               run: | 
-                # export TESTING_IMAGE=ghcr.io/wvrmhat/httpenv:"$GITHUB_RUN_ID"
+                export TESTING_IMAGE=ghcr.io/wvrmhat/httpenv:"$GITHUB_RUN_ID"
                 echo Testing image: "$TESTING_IMAGE"
                 docker compose -f docker-compose.test.yml up --exit-code-from sut
 
