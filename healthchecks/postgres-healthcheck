@@ -19,7 +19,7 @@ for i in {1..5}; do
 		exit 0
 	fi
 
-done 
+# done 
 	
 echo "Postgres health check failed" 
 
