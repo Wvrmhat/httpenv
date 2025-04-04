@@ -13,11 +13,11 @@ a way to check which container you're seeing in browser (or `curl`) by viewing t
 
 Run it from Docker Hub on host port 8888:
 
-`docker run -d -p 8888:8888 bretfisher/httpenv`
+`docker run -d -p 8888:8888 wvrmhat/httpenv`
 
 or from GitHub Container Registry (GHCR) with:
 
-`docker run -d -p 8888:8888 ghcr.io/bretfisher/httpenv`
+`docker run -d -p 8888:8888 ghcr.io/wvrmhat/httpenv`
 
 If you `curl` it, you should get back its environment variables, including the container name:
 
