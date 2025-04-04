@@ -16,38 +16,13 @@ args=(
 
 for i in {1..5}; do
 	if select="$(echo 'SELECT 1' | psql "${args[@]}")" && [ "$select" = '1' ]; then
+		echo "Postgres is ready" 
 		exit 0
 	fi
+	echo "Attempt $i/5 failed. Retrying in 2 seconds..."
+	sleep 2
 
-# done 
+done 
 	
 echo "Postgres health check failed" 
-
 exit 1
-
-# set -eo pipefail
-
-# host="$(hostname -i || echo '127.0.0.1')"
-# user="${POSTGRES_USER:-postgres}"
-# db="${POSTGRES_DB:-$POSTGRES_USER}"
-# export PGPASSWORD="${POSTGRES_PASSWORD:-}"
-
-# echo "Checking if PostgreSQL is ready..."
-
-# # Try up to 5 times with a delay
-# for i in {1..5}; do
-#     if pg_isready -h "$host" -U "$user"; then
-#         # Run a simple SQL query to double-confirm
-#         result=$(psql -h "$host" -U "$user" -d "$db" -tAc "SELECT 1")
-#         if [ "$result" = "1" ]; then
-#             echo "PostgreSQL is ready!"
-#             exit 0
-#         fi
-#     fi
-#     echo "PostgreSQL not ready yet. Attempt $i/5..."
-#     sleep 2
-# done
-
-# echo "PostgreSQL health check failed."
-
-# exit 1
