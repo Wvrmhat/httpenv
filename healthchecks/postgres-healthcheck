@@ -1,27 +1,4 @@
 #!/bin/bash
-# set -eo pipefail
-
-# host="$(hostname -i || echo '127.0.0.1')"
-# user="${POSTGRES_USER:-postgres}"
-# db="${POSTGRES_DB:-$POSTGRES_USER}"
-# export PGPASSWORD="${POSTGRES_PASSWORD:-}"
-
-# args=(
-# 	# force postgres to not use the local unix socket (test "external" connectibility)
-# 	--host "$host"
-# 	--username "$user"
-# 	--dbname "$db"
-# 	--quiet --no-align --tuples-only
-# )
-
-# for i in {1..5}; do
-# 	if select="$(echo 'SELECT 1' | psql "${args[@]}")" && [ "$select" = '1' ]; then
-# 		exit 0
-# fi
-	
-
-# exit 1
-
 set -eo pipefail
 
 host="$(hostname -i || echo '127.0.0.1')"
@@ -29,22 +6,45 @@ user="${POSTGRES_USER:-postgres}"
 db="${POSTGRES_DB:-$POSTGRES_USER}"
 export PGPASSWORD="${POSTGRES_PASSWORD:-}"
 
-echo "Checking if PostgreSQL is ready..."
+args=(
+	# force postgres to not use the local unix socket (test "external" connectibility)
+	--host "$host"
+	--username "$user"
+	--dbname "$db"
+	--quiet --no-align --tuples-only
+)
 
-# Try up to 5 times with a delay
 for i in {1..5}; do
-    if pg_isready -h "$host" -U "$user"; then
-        # Run a simple SQL query to double-confirm
-        result=$(psql -h "$host" -U "$user" -d "$db" -tAc "SELECT 1")
-        if [ "$result" = "1" ]; then
-            echo "PostgreSQL is ready!"
-            exit 0
-        fi
-    fi
-    echo "PostgreSQL not ready yet. Attempt $i/5..."
-    sleep 2
-done
-
-echo "PostgreSQL health check failed."
+	if select="$(echo 'SELECT 1' | psql "${args[@]}")" && [ "$select" = '1' ]; then
+		exit 0
+fi
+	
 
 exit 1
+
+# set -eo pipefail
+
+# host="$(hostname -i || echo '127.0.0.1')"
+# user="${POSTGRES_USER:-postgres}"
+# db="${POSTGRES_DB:-$POSTGRES_USER}"
+# export PGPASSWORD="${POSTGRES_PASSWORD:-}"
+
+# echo "Checking if PostgreSQL is ready..."
+
+# # Try up to 5 times with a delay
+# for i in {1..5}; do
+#     if pg_isready -h "$host" -U "$user"; then
+#         # Run a simple SQL query to double-confirm
+#         result=$(psql -h "$host" -U "$user" -d "$db" -tAc "SELECT 1")
+#         if [ "$result" = "1" ]; then
+#             echo "PostgreSQL is ready!"
+#             exit 0
+#         fi
+#     fi
+#     echo "PostgreSQL not ready yet. Attempt $i/5..."
+#     sleep 2
+# done
+
+# echo "PostgreSQL health check failed."
+
+# exit 1
