@@ -16,8 +16,13 @@ args=(
 
 for i in {1..5}; do
 	if select="$(echo 'SELECT 1' | psql "${args[@]}")" && [ "$select" = '1' ]; then
+		echo "Postgres is ready" 
 		exit 0
-fi
-	
+	fi
+	echo "Attempt $i/5 failed. Retrying in 2 seconds..."
+	sleep 2
 
+done 
+	
+echo "Postgres health check failed" 
 exit 1

@@ -1,0 +1,242 @@
+name: 99 Parallelize Jobs
+
+on:
+    push:
+        branches:
+            - main
+            - Parallelization-workflow
+    pull_request: 
+
+jobs:
+
+    build-test-image:
+        name: Build Image for Testing
+        runs-on: ubuntu-latest
+
+        permissions:
+            packages: write
+
+        steps:
+
+            - name: Setting up Docker Buildx
+              uses: docker/setup-buildx-action@v3
+
+            - name: Login to Docker Hub
+              uses: docker/login-action@v3
+              with:
+                username: ${{ secrets.DOCKERHUB_USERNAME }}
+                password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+            - name: Login to ghcr.io registry
+              uses: docker/login-action@v3
+              with:
+                registry: ghcr.io
+                username: ${{ github.actor }}
+                password: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Build and Push to GHCR 
+              uses: docker/build-push-action@v6
+              with:
+                push: true
+                tags: ghcr.io/wvrmhat/httpenv:${{ github.run_id }}
+                cache-from: type=gha
+                cache-to: type=gha,mode=max
+                platforms: linux/amd64
+
+
+    test-unit:
+        name: Unit tests
+        needs: [build-test-image]
+        runs-on: ubuntu-latest
+
+        permissions:
+            packages: read
+
+        steps:
+
+            - name: Login to ghcr.io registry
+              uses: docker/login-action@v3
+              with:
+                registry: ghcr.io
+                username: ${{ github.actor }}
+                password: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Unit Testing in Docker
+              run: docker run --rm ghcr.io/wvrmhat/httpenv:"$GITHUB_RUN_ID" echo "Run test commands here"
+
+    
+    test-integration:
+        name: Integration tests in Compose
+        needs: [build-test-image]
+        runs-on: ubuntu-latest
+        
+        permissions:
+            packages: read
+
+        # env:
+        #     TESTING_IMAGE: ghcr.io/wvrmhat/httpenv:${{ github.run_id }}
+
+        steps:
+
+            - name: Checkout git repo
+              uses: actions/checkout@v4
+
+            - name: Login to Docker Hub
+              uses: docker/login-action@v3 
+              with:
+                username: ${{ secrets.DOCKERHUB_USERNAME }}
+                password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+            - name: Login to ghcr.io registry
+              uses: docker/login-action@v3
+              with:
+                registry: ghcr.io
+                username: ${{ github.actor }}
+                password: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Executing Postgres healthcheck
+              run: chmod +x ./healthchecks/postgres-healthcheck 
+
+            - name: Healthceck in Docker Compose 
+              run: | 
+                export TESTING_IMAGE=ghcr.io/wvrmhat/httpenv:"$GITHUB_RUN_ID"
+                echo Testing image: "$TESTING_IMAGE"
+                docker compose -f docker-compose.test.yml up --exit-code-from sut
+
+
+    test-k3d:
+        name: Test Deployment in Kubernetes
+        needs: [build-test-image]
+        runs-on: ubuntu-latest
+
+        permissions:
+            packages: read
+      
+        steps:
+      
+            - name: Checkout git repo
+              uses: actions/checkout@v4
+      
+            - name: Login to Docker Hub
+              uses: docker/login-action@v3
+              with:
+                username: ${{ secrets.DOCKERHUB_USERNAME }}
+                password: ${{ secrets.DOCKERHUB_TOKEN }}
+            
+            - name: Login to ghcr.io registry
+              uses: docker/login-action@v3
+              with:
+                registry: ghcr.io
+                username: ${{ github.actor }}
+                password: ${{ secrets.GITHUB_TOKEN }}
+
+            - uses: AbsaOSS/k3d-action@v2
+              with: 
+                cluster-name: "test-cluster-1"
+                args: >-
+                    --agents 1
+                    --no-lb
+                    --k3s-arg "--no-deploy=traefik,servicelb,metrics-server@server:*"
+
+            - name: Smoke test deployment in k3d Kubernetes
+              run: |
+                kubectl create secret docker-registry regcred \
+                --docker-server=https://ghcr.io \
+                --docker-username=${{ github.actor }} \
+                --docker-password=${{ secrets.GITHUB_TOKEN }}
+                export TESTING_IMAGE=ghcr.io/wvrmhat/httpenv:"$GITHUB_RUN_ID"
+                envsubst < manifests/deployment.yaml  | kubectl apply -f -
+                kubectl rollout status deployment myapp
+                kubectl exec deploy/myapp -- curl --fail localhost:8888
+
+
+    cve-scanning:
+        name: Scanning image with Trivy
+        needs: [build-test-image]
+        runs-on: ubuntu-latest
+        
+        permissions:
+            contents: read
+            packages: read
+            security-events: write 
+            
+        steps: 
+              - name: Checkout git repo
+                uses: actions/checkout@v4
+            
+              - name: Login to Docker Hub
+                uses: docker/login-action@v3
+                with:
+                    username: ${{ secrets.DOCKERHUB_USERNAME }}
+                    password: ${{ secrets.DOCKERHUB_TOKEN }}
+                
+              - name: Login to ghcr.io registry
+                uses: docker/login-action@v3
+                with:
+                    registry: ghcr.io
+                    username: ${{ github.actor }}
+                    password: ${{ secrets.GITHUB_TOKEN }} 
+
+              - name: Pull image to scan 
+                run: docker pull ghcr.io/wvrmhat/httpenv:"$GITHUB_RUN_ID"
+
+              - name: Running Trivy for all CVEs (non-blocking)
+                uses: aquasecurity/trivy-action@master
+                with:
+                    image-ref: ghcr.io/wvrmhat/httpenv:${{ github.run_id }}
+                    format: table
+                    exit-code: 0
+
+    building-final-image:
+        name: Build Final Image
+        needs: [test-unit, test-integration, test-k3d, cve-scanning]
+        runs-on: ubuntu-latest
+
+        permissions:
+            packages: write
+            pull-requests: write
+
+        steps:
+
+            - name: Set up QEMU
+              uses: docker/setup-qemu-action@v3
+
+            - name: Set up Docker Buildx
+              uses: docker/setup-buildx-action@v3
+      
+            - name: Login to Docker Hub
+              uses: docker/login-action@v3
+              with:
+                username: ${{ secrets.DOCKERHUB_USERNAME }}
+                password: ${{ secrets.DOCKERHUB_TOKEN }}
+      
+            - name: Login to ghcr.io registry
+              uses: docker/login-action@v3
+              with:
+                registry: ghcr.io
+                username: ${{ github.actor }}
+                password: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Docker Metadata for Final Image Build
+              id: docker_meta
+              uses: docker/metadata-action@v5
+              with:
+                images: wvrmhat/httpenv,ghcr.io/wvrmhat/httpenv
+                flavor: |
+                    latest=false
+                tags: |
+                    type=raw,value=99
+
+            - name: Docker Build and Push to GHCR and Docker Hub
+              uses: docker/build-push-action@v6
+              with: 
+                push: true
+                tags: ${{ steps.docker_meta.outputs.tags }}
+                labels: ${{ steps.docker_meta.outputs.labels }}
+                cache-from: type=gha
+                cache-to: type=gha, mode=max
+                platforms: linux/amd64,linux/arm64
+              
+
+
+            

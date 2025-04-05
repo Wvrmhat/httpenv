@@ -10,11 +10,11 @@ services:
     volumes:
       - ./healthchecks:/healthchecks
     healthcheck:
-      test: /healthchecks/postgres-healthcheck
-      interval: "5s"
-      # retries: 3
+      test: ["CMD", "./healthchecks/postgres-healthcheck"]
+      interval: "10s"
+      retries: 3
       # start_period: "60s"
-      # timeout: "5s"
+      timeout: "5s"
   sut:
     image: "${TESTING_IMAGE}"
     depends_on:
